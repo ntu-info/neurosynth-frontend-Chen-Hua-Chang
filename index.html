@@ -1,46 +1,382 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
-  <title>Fetch /terms Demo</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tren's 後端 API 查詢介面</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 設定全域字體為 Inter */
+        html { font-family: 'Inter', sans-serif; }
+        /* 隱藏捲軸但仍可捲動 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* 自定義樣式 */
+        .card {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+        }
+    </style>
 </head>
-<body>
-  <h1>Fetch https://mil.psy.ntu.edu.tw:5000/terms</h1>
-  <button id="btn">Fetch again</button>
-  <pre id="out">Loading…</pre>
+<body class="bg-gray-50 min-h-screen p-4 sm:p-8">
 
-  <script>
-    async function fetchTerms() {
-      const out = document.getElementById('out');
-      out.textContent = 'Requesting…';
-      try {
-        const resp = await fetch('https://mil.psy.ntu.edu.tw:5000/terms');
-        let info = `HTTP ${resp.status} ${resp.statusText}\n`;
-        const ct = resp.headers.get('content-type') || '';
+    <div class="max-w-4xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-blue-800 mb-2">Tren's 後端查詢工具</h1>
+            <p class="text-gray-500">使用 AJAX 呼叫：<span class="font-mono text-sm">https://mil.psy.ntu.edu.tw:5000</span></p>
+        </header>
 
-        if (!resp.ok) {
-          const text = await resp.text();
-          out.textContent = info + '\n' + text;
-          return;
+        <!-- API 功能區塊容器 -->
+        <div class="space-y-6">
+
+            <!-- 1. 查詢所有詞彙 (/terms) -->
+            <div class="card bg-white p-6 rounded-xl border border-blue-100">
+                <h2 class="text-xl font-semibold text-blue-700 mb-4">功能一：查詢所有可用詞彙</h2>
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between">
+                    <p class="text-gray-600 mb-4 sm:mb-0 sm:mr-4 font-mono text-sm">GET /terms</p>
+                    <button id="fetchTermsBtn" class="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition duration-150">
+                        執行查詢
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. 查詢相關詞彙 (/terms/<t1>) -->
+            <div class="card bg-white p-6 rounded-xl border border-blue-100">
+                <h2 class="text-xl font-semibold text-blue-700 mb-4">功能二：查詢特定詞彙的相關詞彙</h2>
+                <p class="text-gray-600 mb-4 font-mono text-sm">GET /terms/&lt;詞彙&gt;</p>
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <input type="text" id="relatedTermInput" placeholder="輸入詞彙 (e.g., amygdala)" value="amygdala" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
+                    <button id="fetchRelatedTermsBtn" class="sm:w-32 px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition duration-150">
+                        查詢
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. 邏輯搜尋研究 (/query/<q_string>/studies) -->
+            <div class="card bg-white p-6 rounded-xl border border-blue-100">
+                <h2 class="text-xl font-semibold text-blue-700 mb-4">功能三：邏輯搜尋研究報告</h2>
+                <p class="text-gray-600 mb-4 font-mono text-sm">GET /query/&lt;邏輯字串&gt;/studies</p>
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <input type="text" id="queryStringInput" placeholder="輸入查詢字串 (e.g., amygdala not emotion)" value="amygdala not emotion" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
+                    <button id="queryStudiesBtn" class="sm:w-32 px-6 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition duration-150">
+                        搜尋
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 結果顯示區 -->
+        <div id="resultsContainer" class="mt-8">
+            <h2 class="text-2xl font-bold text-gray-700 mb-4">查詢結果</h2>
+            
+            <!-- 載入指示器 -->
+            <div id="loadingIndicator" class="hidden text-center p-8 bg-yellow-100 text-yellow-800 rounded-lg">
+                <svg class="animate-spin h-5 w-5 mr-3 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                正在查詢中...
+            </div>
+
+            <!-- 訊息/錯誤顯示區 -->
+            <div id="messageBox" class="p-4 rounded-lg hidden" role="alert"></div>
+
+            <!-- JSON 原始資料顯示區 -->
+            <div id="jsonDisplay" class="bg-gray-800 text-white p-4 rounded-lg font-mono text-sm max-h-96 overflow-y-auto mt-4 no-scrollbar hidden">
+                <pre id="jsonPre"></pre>
+            </div>
+
+            <!-- 格式化結果顯示區 -->
+            <div id="formattedResults" class="mt-4 space-y-4">
+                <!-- 格式化結果將被插入此處 -->
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const BASE_URL = "https://mil.psy.ntu.edu.tw:5000";
+
+        // 獲取 DOM 元素
+        const fetchTermsBtn = document.getElementById('fetchTermsBtn');
+        const relatedTermInput = document.getElementById('relatedTermInput');
+        const fetchRelatedTermsBtn = document.getElementById('fetchRelatedTermsBtn');
+        const queryStringInput = document.getElementById('queryStringInput');
+        const queryStudiesBtn = document.getElementById('queryStudiesBtn');
+
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const messageBox = document.getElementById('messageBox');
+        const jsonDisplay = document.getElementById('jsonDisplay');
+        const jsonPre = document.getElementById('jsonPre');
+        const formattedResults = document.getElementById('formattedResults');
+
+        /**
+         * 顯示訊息或錯誤
+         * @param {string} text - 要顯示的文字
+         * @param {string} type - 訊息類型: 'success', 'error', 'info'
+         */
+        function showMessage(text, type = 'info') {
+            let className = '';
+            if (type === 'error') {
+                className = 'bg-red-100 text-red-800 border-red-400';
+            } else if (type === 'success') {
+                className = 'bg-green-100 text-green-800 border-green-400';
+            } else {
+                className = 'bg-blue-100 text-blue-800 border-blue-400';
+            }
+            messageBox.className = `p-4 rounded-lg border ${className} mt-4`;
+            messageBox.textContent = text;
+            messageBox.classList.remove('hidden');
         }
 
-        if (ct.includes('application/json')) {
-          const data = await resp.json();
-          out.textContent = info + '\n' + JSON.stringify(data, null, 2);
-        } else {
-          const text = await resp.text();
-          out.textContent = info + '\n' + text;
+        /**
+         * 清空結果顯示區
+         */
+        function clearResults() {
+            messageBox.classList.add('hidden');
+            jsonDisplay.classList.add('hidden');
+            formattedResults.innerHTML = '';
         }
-      } catch (err) {
-        document.getElementById('out').textContent =
-          'Error: ' + (err && err.message ? err.message : String(err)) +
-          '\n\nCommon causes:\n1) CORS not allowed by the server\n2) Opening this file via file:// instead of a local server\n3) Network/server issues';
-      }
-    }
 
-    document.getElementById('btn').addEventListener('click', fetchTerms);
-    fetchTerms();
-  </script>
+        /**
+         * 處理 API 呼叫的通用函數 (AJAX) - 已整合老師範例的穩健錯誤處理邏輯
+         * @param {string} endpoint - API 端點
+         * @param {string} queryName - 查詢的名稱 (用於顯示訊息)
+         * @returns {Promise<any | null>} - 成功時返回 JSON 資料，失敗或格式不符時返回 null
+         */
+        async function fetchAPI(endpoint, queryName) {
+            clearResults();
+            loadingIndicator.classList.remove('hidden');
+            
+            const url = `${BASE_URL}${endpoint}`;
+            
+            // 儲存請求和回應的詳細狀態，用於錯誤報告
+            let fetchInfo = {
+                status: 'N/A',
+                statusText: 'N/A',
+                url: url
+            };
+
+            try {
+                const response = await fetch(url);
+                
+                fetchInfo.status = response.status;
+                fetchInfo.statusText = response.statusText;
+                
+                // 這是老師範例中用於顯示狀態的資訊
+                let info = `HTTP ${response.status} ${response.statusText}\n`;
+
+                if (!response.ok) {
+                    // 如果 HTTP 狀態碼不是 2xx (例如 404, 500)，讀取錯誤文本
+                    const errorText = await response.text();
+                    
+                    // 將狀態和錯誤文本顯示在 JSON 區塊中
+                    jsonPre.textContent = info + '\n' + errorText;
+                    jsonDisplay.classList.remove('hidden');
+                    
+                    // 拋出包含詳細資訊的錯誤
+                    throw new Error(`伺服器回應錯誤: ${response.status} ${response.statusText}`);
+                }
+
+                // 檢查 Content-Type 以決定如何解析回應
+                const contentType = response.headers.get('content-type') || '';
+                
+                if (contentType.includes('application/json')) {
+                    const data = await response.json();
+                    
+                    // 顯示 JSON 原始資料
+                    jsonPre.textContent = info + '\n' + JSON.stringify(data, null, 2);
+                    jsonDisplay.classList.remove('hidden');
+                    
+                    showMessage(`✅ ${queryName} 查詢成功! (狀態: ${response.status} ${response.statusText})`, 'success');
+                    return data;
+
+                } else {
+                    // 如果格式不是 JSON，顯示文本並發出警告
+                    const text = await response.text();
+                    jsonPre.textContent = info + '\n' + text;
+                    jsonDisplay.classList.remove('hidden');
+                    showMessage(`⚠️ 成功接收回應 (狀態: ${response.status} ${response.statusText})，但格式非 JSON，無法格式化。`, 'info');
+                    return null;
+                }
+
+
+            } catch (err) {
+                // 處理網路錯誤、CORS 錯誤或上述拋出的錯誤
+                const errorMessage = err && err.message ? err.message : String(err);
+                
+                const detailedErrorMsg = `
+                    錯誤: ${errorMessage}
+                    
+                    --- 常見錯誤原因 ---
+                    1) CORS (跨域資源共享) 未被 API 伺服器允許。
+                    2) API 伺服器 (${BASE_URL}) 未運行或無法訪問。
+                    3) 網路連線問題。
+                    4) URL 編碼或路徑錯誤。
+                `;
+
+                console.error(`執行 ${queryName} 時發生錯誤:`, err);
+                showMessage(`❌ 查詢失敗: ${errorMessage}`, 'error');
+                
+                // 將詳細錯誤資訊顯示在 JSON 區塊中，提供給使用者參考
+                jsonPre.textContent = detailedErrorMsg;
+                jsonDisplay.classList.remove('hidden');
+
+                return null;
+
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        /**
+         * 格式化並顯示所有詞彙
+         * @param {string[]} terms - 詞彙陣列
+         */
+        function displayTerms(terms) {
+            if (!Array.isArray(terms) || terms.length === 0) {
+                formattedResults.innerHTML = '<p class="text-gray-500">未找到任何詞彙。</p>';
+                return;
+            }
+
+            // 格式化為標籤雲或列表
+            const termHtml = terms.map(term => 
+                `<span class="inline-block bg-blue-100 text-blue-800 text-sm font-medium mr-2 px-3 py-1 rounded-full cursor-pointer hover:bg-blue-200 transition duration-150" onclick="setRelatedTerm('${term}')">${term}</span>`
+            ).join('');
+
+            formattedResults.innerHTML = `
+                <h3 class="text-xl font-medium text-gray-700">找到 ${terms.length} 個詞彙:</h3>
+                <div class="p-4 bg-white rounded-lg border border-gray-200">${termHtml}</div>
+            `;
+        }
+        
+        // 點擊詞彙時自動填入相關詞彙輸入框
+        window.setRelatedTerm = (term) => {
+            relatedTermInput.value = term;
+            showMessage(`已將 "${term}" 填入相關詞彙查詢欄位。`, 'info');
+        }
+
+        /**
+         * 格式化並顯示相關詞彙
+         * @param {Object} data - 相關詞彙的物件
+         */
+        function displayRelatedTerms(data) {
+             const keys = Object.keys(data);
+             if (keys.length === 0) {
+                 formattedResults.innerHTML = '<p class="text-gray-500">未找到相關詞彙。</p>';
+                 return;
+             }
+
+             const listItems = keys.map(key => {
+                 const related = data[key];
+                 if (Array.isArray(related)) {
+                      const relatedTermsHtml = related.map(term => 
+                         `<span class="inline-block bg-indigo-100 text-indigo-800 text-xs font-medium mr-1 mb-1 px-2 py-0.5 rounded-full cursor-pointer hover:bg-indigo-200 transition duration-150" onclick="setRelatedTerm('${term}')">${term}</span>`
+                      ).join('');
+                      return `
+                         <li class="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                             <strong class="text-indigo-600">${key}:</strong> 
+                             <div class="mt-1 flex flex-wrap">${relatedTermsHtml}</div>
+                         </li>
+                      `;
+                 }
+                 return '';
+             }).join('');
+
+             formattedResults.innerHTML = `
+                 <h3 class="text-xl font-medium text-gray-700">相關詞彙細節:</h3>
+                 <ul class="space-y-2 list-none p-0">${listItems}</ul>
+             `;
+        }
+
+
+        /**
+         * 格式化並顯示研究結果
+         * @param {Object[]} studies - 研究報告陣列
+         */
+        function displayStudies(studies) {
+            if (!Array.isArray(studies) || studies.length === 0) {
+                formattedResults.innerHTML = '<p class="text-gray-500">未找到符合條件的研究報告。</p>';
+                return;
+            }
+
+            const studyCards = studies.map((study, index) => {
+                const title = study.title || '無標題';
+                const pmid = study.PMID || 'N/A';
+                const score = study.Score !== undefined ? study.Score.toFixed(3) : 'N/A';
+                const abstract = study.Abstract || '無摘要資訊。';
+
+                // 簡化詞彙列表顯示
+                const tags = study.Terms && Array.isArray(study.Terms) 
+                    ? study.Terms.slice(0, 5).map(term => `<span class="inline-block bg-green-100 text-green-800 text-xs font-medium mr-1 px-2 py-0.5 rounded-full">${term}</span>`).join('')
+                    : '無相關詞彙';
+
+                return `
+                    <div class="card bg-white p-4 rounded-lg border border-green-200 hover:shadow-lg transition duration-300">
+                        <h4 class="text-lg font-semibold text-green-700 mb-1">${index + 1}. ${title}</h4>
+                        <div class="flex flex-wrap items-center mb-2 text-sm">
+                            <span class="mr-3 text-gray-500">PMID: ${pmid}</span>
+                            ${study.Score !== undefined ? `<span class="font-bold text-lg text-red-600">分數: ${score}</span>` : ''}
+                        </div>
+                        <p class="text-gray-600 mb-2 line-clamp-3">${abstract}</p>
+                        <div class="mt-2 text-sm">
+                            <strong class="text-gray-700">相關詞彙 (${study.Terms ? study.Terms.length : 0}個):</strong>
+                            <div class="mt-1 flex flex-wrap">${tags}</div>
+                        </div>
+                        ${pmid !== 'N/A' ? `<a href="https://pubmed.ncbi.nlm.nih.gov/${pmid}" target="_blank" class="mt-2 inline-block text-sm text-blue-500 hover:underline">查看 PubMed 原始連結</a>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            formattedResults.innerHTML = `
+                <h3 class="text-xl font-medium text-gray-700">找到 ${studies.length} 份研究報告:</h3>
+                <div class="space-y-4">${studyCards}</div>
+            `;
+        }
+
+        // --- 點擊事件監聽器 ---
+
+        // 功能一：查詢所有詞彙
+        fetchTermsBtn.addEventListener('click', async () => {
+            const data = await fetchAPI('/terms', '所有詞彙');
+            if (data) {
+                // 假設 /terms 返回一個詞彙陣列
+                displayTerms(data);
+            }
+        });
+
+        // 功能二：查詢相關詞彙
+        fetchRelatedTermsBtn.addEventListener('click', async () => {
+            const term = relatedTermInput.value.trim();
+            if (!term) {
+                showMessage('請輸入一個詞彙來查詢相關詞彙。', 'error');
+                return;
+            }
+            // 確保詞彙被正確編碼
+            const endpoint = `/terms/${encodeURIComponent(term)}`;
+            const data = await fetchAPI(endpoint, `相關詞彙: ${term}`);
+            if (data) {
+                // 假設 /terms/<t1> 返回一個物件
+                displayRelatedTerms(data);
+            }
+        });
+
+        // 功能三：邏輯搜尋研究報告
+        queryStudiesBtn.addEventListener('click', async () => {
+            const queryString = queryStringInput.value.trim();
+            if (!queryString) {
+                showMessage('請輸入一個查詢字串 (例如: amygdala not emotion)。', 'error');
+                return;
+            }
+            // 邏輯查詢字串必須被正確編碼
+            const endpoint = `/query/${encodeURIComponent(queryString)}/studies`;
+            const data = await fetchAPI(endpoint, `邏輯搜尋: ${queryString}`);
+            if (data) {
+                // 假設 /query/.../studies 返回一個研究報告陣列
+                displayStudies(data);
+            }
+        });
+    </script>
 </body>
 </html>
-
