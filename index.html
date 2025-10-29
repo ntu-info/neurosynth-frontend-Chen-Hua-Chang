@@ -16,6 +16,26 @@
         .card {
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
         }
+        /* 自動完成建議框樣式 */
+        .suggestions-box {
+            position: absolute;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            background-color: white;
+            z-index: 10;
+        }
+        .suggestion-item {
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        .suggestion-item:hover {
+            background-color: #f1f5f9;
+        }
+        .suggestion-item strong {
+            color: #1d4ed8;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen p-4 sm:p-8">
@@ -23,256 +43,203 @@
     <div class="max-w-4xl mx-auto">
         <header class="text-center mb-8">
             <h1 class="text-4xl font-extrabold text-blue-800 mb-2">Tren's 後端查詢工具</h1>
-            <p class="text-gray-500">使用 AJAX 呼叫：<span class="font-mono text-sm">https://mil.psy.ntu.edu.tw:5000</span></p>
+            <p class="text-gray-500">使用 AJAX 呼叫：<span class="font-mono text-sm">https://hpc.psy.ntu.edu.tw:5000</span></p>
         </header>
 
         <!-- API 功能區塊容器 -->
         <div class="space-y-6">
 
-            <!-- 1. 查詢所有詞彙 (/terms) -->
+            <!-- 1. 自動載入 - 可用詞彙選單 -->
             <div class="card bg-white p-6 rounded-xl border border-blue-100">
-                <h2 class="text-xl font-semibold text-blue-700 mb-4">功能一：查詢所有可用詞彙</h2>
-                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between">
-                    <p class="text-gray-600 mb-4 sm:mb-0 sm:mr-4 font-mono text-sm">GET /terms</p>
-                    <button id="fetchTermsBtn" class="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition duration-150">
-                        執行查詢
-                    </button>
+                <h2 class="text-xl font-semibold text-blue-700 mb-4">所有可用詞彙</h2>
+                <p class="text-gray-600 mb-4 font-mono text-sm">GET /terms</p>
+                <div id="termsCloudContainer" class="p-4 bg-gray-50 rounded-lg border border-gray-200 min-h-[50px]">
+                    <span id="termsLoadingText" class="text-gray-400">正在載入詞彙列表...</span>
                 </div>
             </div>
 
-            <!-- 2. 查詢相關詞彙 (/terms/<t1>) -->
-            <div class="card bg-white p-6 rounded-xl border border-blue-100">
-                <h2 class="text-xl font-semibold text-blue-700 mb-4">功能二：查詢特定詞彙的相關詞彙</h2>
-                <p class="text-gray-600 mb-4 font-mono text-sm">GET /terms/&lt;詞彙&gt;</p>
-                <div class="flex flex-col sm:flex-row gap-4">
-                    <input type="text" id="relatedTermInput" placeholder="輸入詞彙 (e.g., amygdala)" value="amygdala" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
-                    <button id="fetchRelatedTermsBtn" class="sm:w-32 px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition duration-150">
-                        查詢
-                    </button>
+            <!-- 2. 搜尋介面 (整合功能二與三) -->
+            <div class="card bg-white p-6 rounded-xl border border-indigo-100">
+                <h2 class="text-xl font-semibold text-indigo-700 mb-4">搜尋介面 (Live Search)</h2>
+                
+                <!-- 模式切換選單 -->
+                <div class="mb-4">
+                    <label for="modeSelector" class="block text-sm font-medium text-gray-700 mb-1">選擇搜尋模式：</label>
+                    <select id="modeSelector" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+                        <option value="mode2" selected>查詢相關詞彙</option>
+                        <option value="mode3">邏輯搜尋</option>
+                    </select>
                 </div>
-            </div>
 
-            <!-- 3. 邏輯搜尋研究 (/query/<q_string>/studies) -->
-            <div class="card bg-white p-6 rounded-xl border border-blue-100">
-                <h2 class="text-xl font-semibold text-blue-700 mb-4">功能三：邏輯搜尋研究報告</h2>
-                <p class="text-gray-600 mb-4 font-mono text-sm">GET /query/&lt;邏輯字串&gt;/studies</p>
-                <div class="flex flex-col sm:flex-row gap-4">
-                    <input type="text" id="queryStringInput" placeholder="輸入查詢字串 (e.g., amygdala not emotion)" value="amygdala not emotion" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
-                    <button id="queryStudiesBtn" class="sm:w-32 px-6 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition duration-150">
-                        搜尋
-                    </button>
+                <!-- 功能二 Wrapper -->
+                <div id="mode2Wrapper" class="relative">
+                    <label for="termInput" class="block text-sm font-medium text-gray-700 mb-1">輸入單一詞彙：</label>
+                    <input type="text" id="termInput" placeholder="輸入詞彙 (e.g., amygdala)" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+                    <!-- 自動完成建議框 (共用) -->
+                    <div id="suggestionsBoxMode2" class="suggestions-box rounded-b-lg shadow-lg hidden"></div>
                 </div>
-            </div>
 
+                <!-- 功能三 Wrapper -->
+                <div id="mode3Wrapper" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">組合邏輯查詢：</label>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <!-- 詞彙 1 -->
+                        <div class="flex-1 relative">
+                            <input type="text" id="term1Input" placeholder="詞彙 1 (e.g., amygdala)" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition duration-150">
+                            <div id="suggestionsBoxMode3_1" class="suggestions-box rounded-b-lg shadow-lg hidden"></div>
+                        </div>
+                        <!-- 邏輯 -->
+                        <select id="logicSelector" class="p-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition duration-150">
+                            <option value="AND">AND</option>
+                            <option value="NOT">NOT</option>
+                        </select>
+                        <!-- 詞彙 2 -->
+                        <div class="flex-1 relative">
+                            <input type="text" id="term2Input" placeholder="詞彙 2 (e.g., emotion)" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition duration-150">
+                            <div id="suggestionsBoxMode3_2" class="suggestions-box rounded-b-lg shadow-lg hidden"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </div>
 
         <!-- 結果顯示區 -->
         <div id="resultsContainer" class="mt-8">
             <h2 class="text-2xl font-bold text-gray-700 mb-4">查詢結果</h2>
-            
-            <!-- 載入指示器 -->
             <div id="loadingIndicator" class="hidden text-center p-8 bg-yellow-100 text-yellow-800 rounded-lg">
-                <svg class="animate-spin h-5 w-5 mr-3 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <!-- ... (SVG 載入圖示) ... -->
+                 <svg class="animate-spin h-5 w-5 mr-3 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
                 正在查詢中...
             </div>
-
-            <!-- 訊息/錯誤顯示區 -->
             <div id="messageBox" class="p-4 rounded-lg hidden" role="alert"></div>
-
-            <!-- JSON 原始資料顯示區 -->
             <div id="jsonDisplay" class="bg-gray-800 text-white p-4 rounded-lg font-mono text-sm max-h-96 overflow-y-auto mt-4 no-scrollbar hidden">
                 <pre id="jsonPre"></pre>
             </div>
-
-            <!-- 格式化結果顯示區 -->
-            <div id="formattedResults" class="mt-4 space-y-4">
-                <!-- 格式化結果將被插入此處 -->
-            </div>
+            <div id="formattedResults" class="mt-4 space-y-4"></div>
         </div>
-
     </div>
 
     <script>
-        const BASE_URL = "https://mil.psy.ntu.edu.tw:5000";
+        // --- 全域變數 ---
+        const BASE_URL = "https://hpc.psy.ntu.edu.tw:5000";
+        const DEBOUNCE_TIME = 300; // 300 毫秒
+        let allTerms = []; // 用於儲存所有詞彙，供自動完成使用
+        let activeSuggestionBox = null; // 追蹤目前開啟的建議框
 
-        // 獲取 DOM 元素
-        const fetchTermsBtn = document.getElementById('fetchTermsBtn');
-        const relatedTermInput = document.getElementById('relatedTermInput');
-        const fetchRelatedTermsBtn = document.getElementById('fetchRelatedTermsBtn');
-        const queryStringInput = document.getElementById('queryStringInput');
-        const queryStudiesBtn = document.getElementById('queryStudiesBtn');
-
+        // --- DOM 元素獲取 ---
         const loadingIndicator = document.getElementById('loadingIndicator');
         const messageBox = document.getElementById('messageBox');
         const jsonDisplay = document.getElementById('jsonDisplay');
         const jsonPre = document.getElementById('jsonPre');
         const formattedResults = document.getElementById('formattedResults');
+        
+        const termsCloudContainer = document.getElementById('termsCloudContainer');
+        const termsLoadingText = document.getElementById('termsLoadingText');
 
-        /**
-         * 顯示訊息或錯誤
-         * @param {string} text - 要顯示的文字
-         * @param {string} type - 訊息類型: 'success', 'error', 'info'
-         */
+        const modeSelector = document.getElementById('modeSelector');
+        const mode2Wrapper = document.getElementById('mode2Wrapper');
+        const mode3Wrapper = document.getElementById('mode3Wrapper');
+        
+        const termInput = document.getElementById('termInput'); // Mode 2
+        const term1Input = document.getElementById('term1Input'); // Mode 3
+        const logicSelector = document.getElementById('logicSelector'); // Mode 3
+        const term2Input = document.getElementById('term2Input'); // Mode 3
+        
+        const suggestionsBoxMode2 = document.getElementById('suggestionsBoxMode2');
+        const suggestionsBoxMode3_1 = document.getElementById('suggestionsBoxMode3_1');
+        const suggestionsBoxMode3_2 = document.getElementById('suggestionsBoxMode3_2');
+
+        // --- 核心輔助函數 (debounce, showMessage, clearResults) ---
+        function debounce(func, delay) {
+            let timeoutId;
+            return function(...args) {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    func.apply(this, args);
+                }, delay);
+            };
+        }
+
         function showMessage(text, type = 'info') {
             let className = '';
-            if (type === 'error') {
-                className = 'bg-red-100 text-red-800 border-red-400';
-            } else if (type === 'success') {
-                className = 'bg-green-100 text-green-800 border-green-400';
-            } else {
-                className = 'bg-blue-100 text-blue-800 border-blue-400';
-            }
+            if (type === 'error') className = 'bg-red-100 text-red-800 border-red-400';
+            else if (type === 'success') className = 'bg-green-100 text-green-800 border-green-400';
+            else className = 'bg-blue-100 text-blue-800 border-blue-400';
             messageBox.className = `p-4 rounded-lg border ${className} mt-4`;
             messageBox.textContent = text;
             messageBox.classList.remove('hidden');
         }
 
-        /**
-         * 清空結果顯示區
-         */
-        function clearResults() {
-            messageBox.classList.add('hidden');
+        function clearResults(clearMessage = true) {
+            if (clearMessage) messageBox.classList.add('hidden');
             jsonDisplay.classList.add('hidden');
             formattedResults.innerHTML = '';
         }
 
         /**
-         * 處理 API 呼叫的通用函數 (AJAX) - 已整合老師範例的穩健錯誤處理邏輯
-         * @param {string} endpoint - API 端點
-         * @param {string} queryName - 查詢的名稱 (用於顯示訊息)
-         * @returns {Promise<any | null>} - 成功時返回 JSON 資料，失敗或格式不符時返回 null
+         * 處理 API 呼叫的通用函數
          */
         async function fetchAPI(endpoint, queryName) {
-            clearResults();
+            clearResults(false); 
             loadingIndicator.classList.remove('hidden');
             
             const url = `${BASE_URL}${endpoint}`;
             
-            // 儲存請求和回應的詳細狀態，用於錯誤報告
-            let fetchInfo = {
-                status: 'N/A',
-                statusText: 'N/A',
-                url: url
-            };
-
             try {
                 const response = await fetch(url);
-                
-                fetchInfo.status = response.status;
-                fetchInfo.statusText = response.statusText;
-                
-                // 這是老師範例中用於顯示狀態的資訊
                 let info = `HTTP ${response.status} ${response.statusText}\n`;
 
                 if (!response.ok) {
-                    // 如果 HTTP 狀態碼不是 2xx (例如 404, 500)，讀取錯誤文本
                     const errorText = await response.text();
-                    
-                    // 將狀態和錯誤文本顯示在 JSON 區塊中
                     jsonPre.textContent = info + '\n' + errorText;
                     jsonDisplay.classList.remove('hidden');
-                    
-                    // 拋出包含詳細資訊的錯誤
                     throw new Error(`伺服器回應錯誤: ${response.status} ${response.statusText}`);
                 }
 
-                // 檢查 Content-Type 以決定如何解析回應
                 const contentType = response.headers.get('content-type') || '';
-                
                 if (contentType.includes('application/json')) {
                     const data = await response.json();
-                    
-                    // 顯示 JSON 原始資料
                     jsonPre.textContent = info + '\n' + JSON.stringify(data, null, 2);
                     jsonDisplay.classList.remove('hidden');
-                    
                     showMessage(`✅ ${queryName} 查詢成功! (狀態: ${response.status} ${response.statusText})`, 'success');
                     return data;
-
                 } else {
-                    // 如果格式不是 JSON，顯示文本並發出警告
                     const text = await response.text();
                     jsonPre.textContent = info + '\n' + text;
                     jsonDisplay.classList.remove('hidden');
                     showMessage(`⚠️ 成功接收回應 (狀態: ${response.status} ${response.statusText})，但格式非 JSON，無法格式化。`, 'info');
                     return null;
                 }
-
-
             } catch (err) {
-                // 處理網路錯誤、CORS 錯誤或上述拋出的錯誤
                 const errorMessage = err && err.message ? err.message : String(err);
-                
-                const detailedErrorMsg = `
-                    錯誤: ${errorMessage}
-                    
-                    --- 常見錯誤原因 ---
-                    1) CORS (跨域資源共享) 未被 API 伺服器允許。
-                    2) API 伺服器 (${BASE_URL}) 未運行或無法訪問。
-                    3) 網路連線問題。
-                    4) URL 編碼或路徑錯誤。
-                `;
-
+                const detailedErrorMsg = `錯誤: ${errorMessage}\n\n--- 常見錯誤原因 ---\n1) CORS ...\n2) API 伺服器 (${BASE_URL}) ...\n3) 網路連線...\n4) URL 編碼...`;
                 console.error(`執行 ${queryName} 時發生錯誤:`, err);
                 showMessage(`❌ 查詢失敗: ${errorMessage}`, 'error');
-                
-                // 將詳細錯誤資訊顯示在 JSON 區塊中，提供給使用者參考
                 jsonPre.textContent = detailedErrorMsg;
                 jsonDisplay.classList.remove('hidden');
-
                 return null;
-
             } finally {
                 loadingIndicator.classList.add('hidden');
             }
         }
 
-        /**
-         * 格式化並顯示所有詞彙
-         * @param {string[]} terms - 詞彙陣列
-         */
-        function displayTerms(terms) {
-            if (!Array.isArray(terms) || terms.length === 0) {
-                formattedResults.innerHTML = '<p class="text-gray-500">未找到任何詞彙。</p>';
-                return;
-            }
-
-            // 格式化為標籤雲或列表
-            const termHtml = terms.map(term => 
-                `<span class="inline-block bg-blue-100 text-blue-800 text-sm font-medium mr-2 px-3 py-1 rounded-full cursor-pointer hover:bg-blue-200 transition duration-150" onclick="setRelatedTerm('${term}')">${term}</span>`
-            ).join('');
-
-            formattedResults.innerHTML = `
-                <h3 class="text-xl font-medium text-gray-700">找到 ${terms.length} 個詞彙:</h3>
-                <div class="p-4 bg-white rounded-lg border border-gray-200">${termHtml}</div>
-            `;
-        }
-        
-        // 點擊詞彙時自動填入相關詞彙輸入框
-        window.setRelatedTerm = (term) => {
-            relatedTermInput.value = term;
-            showMessage(`已將 "${term}" 填入相關詞彙查詢欄位。`, 'info');
-        }
-
-        /**
-         * 格式化並顯示相關詞彙
-         * @param {Object} data - 相關詞彙的物件
-         */
+        // --- 格式化顯示函數 (displayRelatedTerms, displayStudies) ---
+        // (與前一版相同，用於顯示結果)
         function displayRelatedTerms(data) {
              const keys = Object.keys(data);
              if (keys.length === 0) {
                  formattedResults.innerHTML = '<p class="text-gray-500">未找到相關詞彙。</p>';
                  return;
              }
-
              const listItems = keys.map(key => {
                  const related = data[key];
                  if (Array.isArray(related)) {
                       const relatedTermsHtml = related.map(term => 
-                         `<span class="inline-block bg-indigo-100 text-indigo-800 text-xs font-medium mr-1 mb-1 px-2 py-0.5 rounded-full cursor-pointer hover:bg-indigo-200 transition duration-150" onclick="setRelatedTerm('${term}')">${term}</span>`
+                         `<span class="inline-block bg-indigo-100 text-indigo-800 text-xs font-medium mr-1 mb-1 px-2 py-0.5 rounded-full">${term}</span>`
                       ).join('');
                       return `
                          <li class="p-3 bg-gray-50 rounded-lg border border-gray-200">
@@ -283,35 +250,25 @@
                  }
                  return '';
              }).join('');
-
              formattedResults.innerHTML = `
                  <h3 class="text-xl font-medium text-gray-700">相關詞彙細節:</h3>
                  <ul class="space-y-2 list-none p-0">${listItems}</ul>
              `;
         }
 
-
-        /**
-         * 格式化並顯示研究結果
-         * @param {Object[]} studies - 研究報告陣列
-         */
         function displayStudies(studies) {
             if (!Array.isArray(studies) || studies.length === 0) {
                 formattedResults.innerHTML = '<p class="text-gray-500">未找到符合條件的研究報告。</p>';
                 return;
             }
-
             const studyCards = studies.map((study, index) => {
                 const title = study.title || '無標題';
                 const pmid = study.PMID || 'N/A';
                 const score = study.Score !== undefined ? study.Score.toFixed(3) : 'N/A';
                 const abstract = study.Abstract || '無摘要資訊。';
-
-                // 簡化詞彙列表顯示
                 const tags = study.Terms && Array.isArray(study.Terms) 
                     ? study.Terms.slice(0, 5).map(term => `<span class="inline-block bg-green-100 text-green-800 text-xs font-medium mr-1 px-2 py-0.5 rounded-full">${term}</span>`).join('')
                     : '無相關詞彙';
-
                 return `
                     <div class="card bg-white p-4 rounded-lg border border-green-200 hover:shadow-lg transition duration-300">
                         <h4 class="text-lg font-semibold text-green-700 mb-1">${index + 1}. ${title}</h4>
@@ -328,55 +285,198 @@
                     </div>
                 `;
             }).join('');
-
             formattedResults.innerHTML = `
                 <h3 class="text-xl font-medium text-gray-700">找到 ${studies.length} 份研究報告:</h3>
                 <div class="space-y-4">${studyCards}</div>
             `;
         }
+        
+        // --- 新功能：自動完成 (Autocomplete) ---
 
-        // --- 點擊事件監聽器 ---
-
-        // 功能一：查詢所有詞彙
-        fetchTermsBtn.addEventListener('click', async () => {
-            const data = await fetchAPI('/terms', '所有詞彙');
-            if (data) {
-                // 假設 /terms 返回一個詞彙陣列
-                displayTerms(data);
+        /**
+         * 顯示建議
+         * @param {HTMLInputElement} inputEl - 觸發的輸入框
+         * @param {HTMLDivElement} suggestionEl - 要顯示的建議框
+         */
+        function showSuggestions(inputEl, suggestionEl) {
+            const query = inputEl.value.toLowerCase();
+            if (activeSuggestionBox && activeSuggestionBox !== suggestionEl) {
+                activeSuggestionBox.classList.add('hidden');
             }
-        });
-
-        // 功能二：查詢相關詞彙
-        fetchRelatedTermsBtn.addEventListener('click', async () => {
-            const term = relatedTermInput.value.trim();
-            if (!term) {
-                showMessage('請輸入一個詞彙來查詢相關詞彙。', 'error');
+            
+            if (!query || allTerms.length === 0) {
+                suggestionEl.classList.add('hidden');
+                activeSuggestionBox = null;
                 return;
             }
-            // 確保詞彙被正確編碼
+
+            const filteredTerms = allTerms.filter(term => term.toLowerCase().includes(query)).slice(0, 10);
+            
+            if (filteredTerms.length === 0) {
+                suggestionEl.classList.add('hidden');
+                activeSuggestionBox = null;
+                return;
+            }
+
+            suggestionEl.innerHTML = filteredTerms.map(term => {
+                const highlighted = term.replace(new RegExp(query, 'gi'), (match) => `<strong>${match}</strong>`);
+                return `<div class="suggestion-item" data-value="${term}">${highlighted}</div>`;
+            }).join('');
+
+            suggestionEl.classList.remove('hidden');
+            activeSuggestionBox = suggestionEl;
+
+            // 為建議項目添加點擊事件
+            suggestionEl.querySelectorAll('.suggestion-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    inputEl.value = item.getAttribute('data-value'); // 填入值
+                    suggestionEl.classList.add('hidden'); // 隱藏建議框
+                    activeSuggestionBox = null;
+                    inputEl.dispatchEvent(new Event('input')); // 手動觸發 input 事件以啟動搜尋
+                });
+            });
+        }
+
+        /**
+         * 隱藏所有建議框
+         */
+        function hideAllSuggestions() {
+            if (activeSuggestionBox) {
+                activeSuggestionBox.classList.add('hidden');
+                activeSuggestionBox = null;
+            }
+        }
+
+        /**
+         * 為輸入框綁定自動完成事件
+         * @param {HTMLInputElement} inputEl - 輸入框
+         * @param {HTMLDivElement} suggestionEl - 建議框
+         */
+        function attachAutocomplete(inputEl, suggestionEl) {
+            inputEl.addEventListener('input', () => {
+                showSuggestions(inputEl, suggestionEl);
+            });
+            
+            // 當輸入框失去焦點時，延遲隱藏，以便點擊事件可以觸發
+            inputEl.addEventListener('blur', () => {
+                setTimeout(hideAllSuggestions, 150);
+            });
+            
+            inputEl.addEventListener('focus', () => {
+                 showSuggestions(inputEl, suggestionEl);
+            });
+        }
+        
+        // --- Live Search 邏輯 ---
+
+        // 功能二：處理 Live Search 相關詞彙
+        const handleMode2Search = async () => {
+            hideAllSuggestions();
+            const term = termInput.value.trim();
+            if (!term) {
+                clearResults();
+                return;
+            }
             const endpoint = `/terms/${encodeURIComponent(term)}`;
             const data = await fetchAPI(endpoint, `相關詞彙: ${term}`);
-            if (data) {
-                // 假設 /terms/<t1> 返回一個物件
-                displayRelatedTerms(data);
+            if (data) { displayRelatedTerms(data); }
+        };
+        
+        // 功能三：處理 Live Search 邏輯搜尋
+        const handleMode3Search = async () => {
+            hideAllSuggestions();
+            const term1 = term1Input.value.trim();
+            const logic = logicSelector.value;
+            const term2 = term2Input.value.trim();
+
+            if (!term1 || !term2) {
+                clearResults();
+                showMessage('請輸入兩個詞彙以進行邏輯搜尋。', 'info');
+                return;
+            }
+            
+            // 組合查詢字串
+            const queryString = `${term1} ${logic} ${term2}`;
+            
+            const endpoint = `/query/${encodeURIComponent(queryString)}/studies`;
+            const data = await fetchAPI(endpoint, `邏輯搜尋: ${queryString}`);
+            if (data) { displayStudies(data); }
+        };
+
+        // --- 應用防抖動 ---
+        const debouncedMode2Search = debounce(handleMode2Search, DEBOUNCE_TIME);
+        const debouncedMode3Search = debounce(handleMode3Search, DEBOUNCE_TIME);
+
+        // --- 初始化與事件綁定 ---
+
+        // 1. 頁面載入時：自動獲取所有詞彙
+        window.addEventListener('load', async () => {
+            try {
+                const data = await fetch(BASE_URL + '/terms');
+                if (!data.ok) throw new Error('伺服器回應錯誤');
+                
+                allTerms = await data.json();
+                
+                // 顯示詞彙雲 (Tag Cloud)
+                if (allTerms.length > 0) {
+                    termsLoadingText.remove(); // 移除 "載入中"
+                    const termHtml = allTerms.slice(0, 100).map(term => // 最多顯示 100 個
+                        `<span class="inline-block bg-blue-100 text-blue-800 text-sm font-medium m-1 px-3 py-1 rounded-full cursor-pointer hover:bg-blue-200 transition duration-150" onclick="selectTerm('${term}')">${term}</span>`
+                    ).join('');
+                    termsCloudContainer.innerHTML = termHtml;
+                    showMessage(`成功載入 ${allTerms.length} 個詞彙！`, 'success');
+                } else {
+                    termsLoadingText.textContent = "未找到任何詞彙。";
+                }
+            } catch (err) {
+                termsLoadingText.textContent = `載入詞彙失敗: ${err.message}`;
+                termsLoadingText.classList.add('text-red-600');
             }
         });
 
-        // 功能三：邏輯搜尋研究報告
-        queryStudiesBtn.addEventListener('click', async () => {
-            const queryString = queryStringInput.value.trim();
-            if (!queryString) {
-                showMessage('請輸入一個查詢字串 (例如: amygdala not emotion)。', 'error');
-                return;
-            }
-            // 邏輯查詢字串必須被正確編碼
-            const endpoint = `/query/${encodeURIComponent(queryString)}/studies`;
-            const data = await fetchAPI(endpoint, `邏輯搜尋: ${queryString}`);
-            if (data) {
-                // 假設 /query/.../studies 返回一個研究報告陣列
-                displayStudies(data);
+        // 點擊詞彙雲中的標籤
+        window.selectTerm = (term) => {
+            // 自動切換到模式二，並填入詞彙
+            modeSelector.value = 'mode2';
+            modeSelector.dispatchEvent(new Event('change'));
+            termInput.value = term;
+            termInput.dispatchEvent(new Event('input')); // 觸發 Live Search
+        }
+
+        // 2. 綁定模式切換
+        modeSelector.addEventListener('change', () => {
+            clearResults();
+            if (modeSelector.value === 'mode2') {
+                mode2Wrapper.classList.remove('hidden');
+                mode3Wrapper.classList.add('hidden');
+                termInput.dispatchEvent(new Event('input')); // 觸發一次
+            } else {
+                mode2Wrapper.classList.add('hidden');
+                mode3Wrapper.classList.remove('hidden');
+                handleMode3Search(); // 觸發一次
             }
         });
+
+        // 3. 綁定自動完成
+        attachAutocomplete(termInput, suggestionsBoxMode2);
+        attachAutocomplete(term1Input, suggestionsBoxMode3_1);
+        attachAutocomplete(term2Input, suggestionsBoxMode3_2);
+        
+        // 4. 綁定 Live Search 觸發器
+        termInput.addEventListener('input', debouncedMode2Search);
+        
+        term1Input.addEventListener('input', debouncedMode3Search);
+        logicSelector.addEventListener('change', debouncedMode3Search);
+        term2Input.addEventListener('input', debouncedMode3Search);
+
+        // 5. 點擊頁面其他地方，隱藏建議框
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.relative')) {
+                hideAllSuggestions();
+            }
+        });
+
     </script>
 </body>
 </html>
+
